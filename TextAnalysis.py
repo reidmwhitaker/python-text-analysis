@@ -108,6 +108,104 @@ print(tagged_sents[4])
 
 #Challenge 3
 def freq_pos(test_string):
-    toks = [word_tokenize(s) for s in sent_tokenize(arthur)]
-    tagged_sents = [pos_tag(s) for s in toks_and_sents]
-    
+    toks = [word_tokenize(s) for s in sent_tokenize(test_string)]
+    tagged_sents = [pos_tag(s) for s in toks]
+    freqs_pos = {}
+    for s in tagged_sents:
+        for word in s:
+            if word[1] in freqs_pos:
+                freqs_pos[word[1]] = freqs_pos[word[1]] + 1
+            else:
+                freqs_pos[word[1]] = 1
+
+    return freqs_pos
+
+print(freq_pos(arthur))
+
+tag_fd = nltk.FreqDist(tag for (word, tag) in [item for sublist in tagged_sents for item in sublist])
+print(tag_fd.most_common())
+
+snowball = nltk.SnowballStemmer('english')
+print(snowball.stem('running'))
+print(snowball.stem('eats'))
+print(snowball.stem('embarassed'))
+print(snowball.stem('cylinder') + ", " + snowball.stem('cylindrical'))
+print(snowball.stem('vacation') + ", " + snowball.stem('vacate'))
+
+nltk.download('wordnet')
+wordnet = nltk.WordNetLemmatizer()
+print(wordnet.lemmatize('vacation') + ", " + wordnet.lemmatize('vacate'))
+
+tok_red_lem = [snowball.stem(w) for w in tokens_reduced]
+fd3 = collocations.FreqDist(tok_red_lem)
+print(fd3.most_common()[:15])
+
+from textblob import TextBlob
+blob = TextBlob(arthur)
+net_pol = 0
+for sentence in blob.sentences:
+    pol = sentence.sentiment.polarity
+    print(pol, sentence)
+    net_pol += pol
+print()
+print("Net polarity of Arthur: ", net_pol)
+
+from gensim import corpora, models, similarities
+
+people = []
+speeches = []
+for k,v in chars_dict.items():
+    people.append(k)
+    new_string = ' '.join(v)  # join all dialogue pices
+    toks = rem_punc_stop(new_string)  # remove puntuation and stop words, and tokenize
+    stems = [snowball.stem(tok) for tok in toks]  # change words to stems
+    speeches.append(stems)
+
+#create a Gensim dictionary from the texts
+dictionary = corpora.Dictionary(speeches)
+
+#remove extremes (similar to the min/max df step used when creating the tf-idf matrix)
+#no_below is absolute # of docs, no_above is fraction of corpus
+dictionary.filter_extremes(no_below=2, no_above=.70)
+
+#convert the dictionary to a bag of words corpus for reference
+corpus = [dictionary.doc2bow(i) for i in speeches]
+
+#we run chunks of 15 books, and update after every 2 chunks, and make 10 passes
+lda = models.LdaModel(corpus, num_topics=6,
+                            update_every=2,
+                            id2word=dictionary,
+                            chunksize=15,
+                            passes=10)
+
+lda.show_topics()
+
+tfidf = models.TfidfModel(corpus)
+corpus_tfidf = tfidf[corpus]
+
+corpus_lda = lda[corpus_tfidf]
+for i, doc in enumerate(corpus_lda): # both bow->tfidf and tfidf->lsi transformations are actually executed here, on the fly
+    print(people[i],doc)
+    print ()
+
+print(lda.show_topics())
+
+with open("./Intro_to_TextAnalysis/King_James_Bible.txt", "r") as f:
+    bible = f.read()
+
+from nltk.tokenize import sent_tokenize
+
+bible = sent_tokenize(bible)
+bible = [word_tokenize(s) for s in bible]
+
+print(bible[10])
+
+import gensim
+model = gensim.models.word2vec.Word2Vec(bible, size=300, window=5, min_count=5, workers=4)
+model.train(bible,  total_examples=model.corpus_count, epochs=model.iter)
+
+print(model.most_similar('man'))
+print(model.most_similar('woman'))
+print(model.most_similar(positive=['king', 'woman'], negative=['man']))
+
+
